@@ -1,0 +1,6 @@
+{
+  "name": "Sistema de Citas y Diagnóstico Preliminar",
+  "description": "Sistema inteligente y minimalista para la gestión de citas médicas y diagnóstico presuntivo inicial.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
