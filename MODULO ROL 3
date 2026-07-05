@@ -1,0 +1,84 @@
+
+# ============================================================================
+# MÓDULO 3: CONTROL DE CALIDAD Y VALIDACIONES
+# ============================================================================
+
+def validar_dni(dni):
+    """Retorna (True, mensaje) si es válido, o (False, mensaje de error)."""
+    try:
+        if dni is None:
+            return False, "Error: El campo DNI no puede estar vacío."
+
+        dni_limpio = str(dni).strip()
+        if re.match(r"^\d{8}$", dni_limpio):
+            return True, "DNI validado con éxito."
+        else:
+            return False, f"Error: '{dni_limpio}' no cumple con el formato requerido (8 dígitos exactos)."
+    except Exception as e:
+        return False, f"Error crítico durante la validación del DNI: {e}"
+
+
+def validar_fecha(fecha_str):
+    """Valida formato DD/MM/AAAA y que la fecha no sea pasada."""
+    try:
+        if fecha_str is None:
+            return False, "Error: El campo fecha no puede estar vacío."
+
+        fecha_limpio = str(fecha_str).strip()
+        fecha_objeto = datetime.strptime(fecha_limpio, "%d/%m/%Y").date()
+
+        if fecha_objeto < datetime.now().date():
+            return False, f"Error: La fecha {fecha_limpio} es pasada. No se pueden programar citas antiguas."
+
+        return True, "Fecha validada con éxito."
+    except ValueError:
+        return False, f"Error: '{fecha_str}' no es una fecha válida. Utilice el formato DD/MM/AAAA."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de fecha: {e}"
+
+
+def validar_hora(hora_str):
+    """Valida formato HH:MM (24h)."""
+    try:
+        if hora_str is None:
+            return False, "Error: El campo hora no puede estar vacío."
+
+        hora_limpio = str(hora_str).strip()
+        datetime.strptime(hora_limpio, "%H:%M")
+        return True, "Hora validada con éxito."
+    except ValueError:
+        return False, f"Error: '{hora_str}' no es una hora válida (HH:MM formato 24h)."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de hora: {e}"
+
+
+def validar_telefono(telefono):
+    """Valida 9 dígitos iniciando con 9."""
+    try:
+        if telefono is None:
+            return False, "Error: El campo teléfono no puede estar vacío."
+
+        tel_limpio = str(telefono).strip()
+        if re.match(r"^9\d{8}$", tel_limpio):
+            return True, "Teléfono validado con éxito."
+        else:
+            return False, f"Error: '{tel_limpio}' inválido. Debe iniciar con 9 y tener 9 dígitos."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de teléfono: {e}"
+
+
+def validar_correo(correo):
+    """Valida estructura básica de email."""
+    try:
+        if correo is None:
+            return False, "Error: El campo correo no puede estar vacío."
+
+        correo_limpio = str(correo).strip().lower()
+        patron = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+        if re.match(patron, correo_limpio):
+            return True, "Correo validado con éxito."
+        else:
+            return False, f"Error: '{correo_limpio}' no tiene una estructura de correo válida."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de correo: {e}"
