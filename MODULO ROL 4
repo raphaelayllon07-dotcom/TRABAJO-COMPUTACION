@@ -1,0 +1,259 @@
+ ============================================================================
+# MÓDULO 4: REPORTES, ANALÍTICA Y GRÁFICOS ESTADÍSTICOS
+# ============================================================================
+
+def mostrar_graficos_distribucion(base_datos):
+    """Genera gráficos analíticos vectorizados de distribución en consola."""
+    print("\n" + "📊 " + "═"*50)
+    print("      📈 DATA VISUALIZATION - DISTRIBUCION DE CITAS")
+    print("═"*53)
+
+    if not base_datos["citas"]:
+        print("📭 Mensaje: No hay datos suficientes para estructurar graficos analiticos.")
+        print("═"*53)
+        return
+
+    df = pd.DataFrame(base_datos["citas"])
+
+    # Gráfico 1: Distribución por Especialista
+    print("\n[GRÁFICO 1] Volumen de Pacientes por Medico Especialista")
+    print("-" * 53)
+    df["Medico"] = df["id_especialista"].apply(lambda x: base_datos["especialistas"].get(x, {}).get("nombre", "Desconocido"))
+    frecuencia_medicos = df["Medico"].value_counts()
+
+    for medico, conteo in frecuencia_medicos.items():
+        barra = "█" * conteo
+        print(f" {medico:<22} | {barra} ({conteo} pac)")
+
+    # Gráfico 2: Distribución por Patologías / Diagnósticos Preliminares
+    print("\n[GRÁFICO 2] Incidencia de Patologias Detectadas (Diagnostico Preliminar)")
+    print("-" * 53)
+    frecuencia_diagnosticos = df["diagnostico_preliminar"].value_counts()
+
+    for diagnostico, conteo in frecuencia_diagnosticos.items():
+        barra = "■" * conteo
+        print(f" {diagnostico:<22} | {barra} ({conteo} casos)")
+    print("═"*53)
+
+
+def exportar_citas_a_excel(base_datos):
+    """Convierte la lista de citas en un DataFrame de Pandas y exporta a Excel (.xlsx)."""
+    print("\n" + "═"*45)
+    print("        📊 EXPORTACION DE AGENDA A EXCEL")
+    print("═"*45)
+
+    if not base_datos["citas"]:
+        print("📭 Mensaje: No hay datos de citas que procesar para el reporte Excel.")
+        print("═"*45)
+        return
+
+    try:
+        df = pd.DataFrame(base_datos["citas"])
+
+        df["Nombre Paciente"] = df["id_paciente"].apply(lambda x: base_datos["pacientes"].get(x, {}).get("nombre", "No Registrado"))
+        df["Médico Especialista"] = df["id_especialista"].apply(lambda x: base_datos["especialistas"].get(x, {}).get("nombre", "No Asignado"))
+
+        df_final = df[["id_cita", "id_paciente", "Nombre Paciente", "Médico Especialista", "fecha", "hora", "sintomas_reportados", "diagnostico_preliminar", "estado"]]
+        df_final.columns = ["Código Cita", "DNI Paciente", "Nombre Paciente", "Médico Especialista", "Fecha", "Hora", "Síntomas", "Diagnóstico Inteligente", "Estado Actual"]
+
+        nombre_archivo = "Reporte_Citas_Medicas.xlsx"
+        df_final.to_excel(nombre_archivo, index=False)
+
+        print(f"✨ ¡EXITO TOTAL! Se ha generado el reporte ejecutivo de manera limpia.")
+        print(f"📁 Archivo creado en la carpeta del proyecto: '{nombre_archivo}'")
+        print("═"*45)
+    except Exception as e:
+        print(f"❌ Error critico en la generacion de la hoja de calculo Pandas: {e}")
+
+
+def generar_resumen_estadistico(base_datos):
+    print("\n" + "═"*45)
+    print("            📊 RESUMEN ESTADISTICO GENERAL")
+    print("═"*45)
+    total_citas = len(base_datos["citas"])
+    total_pacientes = len(base_datos["pacientes"])
+    total_especialistas = len(base_datos["especialistas"])
+    print(f" 📅 Total de Citas Agendadas : {total_citas} registros")
+    print(f" 👥 Pacientes Registrados    : {total_pacientes} usuarios")
+    print(f" 🩺 Especialistas Activos    : {total_especialistas} medicos")
+    print("═"*45)
+
+
+def reporte_paciente_con_mas_citas(base_datos):
+    print("\n" + "═"*45)
+    print("         📊 PACIENTE CON MAYOR ACTIVIDAD")
+    print("═"*45)
+    citas = base_datos["citas"]
+    if not citas:
+        print(" 📭 Mensaje: No se registran citas agendadas en el sistema aun.")
+        print("═"*45)
+        return
+
+    frecuencias_pacientes = {}
+    for cita in citas:
+        id_paciente = cita["id_paciente"]
+        frecuencias_pacientes[id_paciente] = frecuencias_pacientes.get(id_paciente, 0) + 1
+
+    dni_maximo = None
+    max_citas = -1
+    for DNI, total_citas in frecuencias_pacientes.items():
+        if total_citas > max_citas:
+            max_citas = total_citas
+            dni_maximo = DNI
+
+    if dni_maximo in base_datos["pacientes"]:
+        nombre_completo = base_datos["pacientes"][dni_maximo]["nombre"]
+    else:
+        nombre_completo = "Paciente Temporal / No Registrado"
+
+    print(f" 🏆 Paciente mas recurrente  : {nombre_completo}")
+    print(f" 🪪 Documento de Identidad    : DNI {dni_maximo}")
+    print(f" 📊 Total de citas acumuladas : {max_citas} asistencias")
+    print("═"*45)
+
+
+def menu_reportes_y_analitica(base_datos):
+    while True:
+        print("\n" + "═"*45)
+        print("    📊 PANEL DE CONTROL Y REPORTES MEDICOS")
+        print("═"*45)
+        print("1. Ver Resumen Estadistico General")
+        print("2. Identificar Paciente Recurrente")
+        print("3. Visualizar Graficos Analiticos de Distribucion")
+        print("4. Exportar toda la Agenda a Excel (Pandas)")
+        print("5. Volver al Menú Principal")
+        print("═"*45)
+        try:
+            opcion = int(input("Seleccione un reporte (1-5): "))
+        except ValueError:
+            print("\n❌ ERROR: Entrada invalida. Por favor, ingrese un numero entero.")
+            continue
+        if opcion == 1:
+            generar_resumen_estadistico(base_datos)
+        elif opcion == 2:
+            reporte_paciente_con_mas_citas(base_datos)
+        elif opcion == 3:
+            mostrar_graficos_distribucion(base_datos)
+        elif opcion == 4:
+            exportar_citas_a_excel(base_datos)
+        elif opcion == 5:
+            print("\nRegresando de forma segura al Panel Principal...")
+            break
+        else:
+            print("\n❌ OPCION NO VALIDA: Intente con un numero entre 1 y 5.")
+
+
+# ============================================================================
+# MÓDULO INTERFAZ DE USUARIO: MENÚ PRINCIPAL INTERACTIVO
+# ============================================================================
+
+def menu_principal():
+    base_datos = cargar_datos()
+
+    while True:
+        print("\n" + "═"*50)
+        print("      🏥 SISTEMA GESTION DE CITAS MEDICAS v4.3")
+        print("═"*50)
+        print("1. Agendar Nueva Cita (Con Diagnostico Inteligente)")
+        print("2. Reprogramar Cita Existente")
+        print("3. Cancelar Cita")
+        print("4. Cierre de Jornada (Confirmacion Masiva)")
+        print("5. Panel de Reportes, Analitica y Graficos")
+        print("6. Salir del Sistema")
+        print("═"*50)
+
+        try:
+            opcion = int(input("Seleccione una opción (1-6): "))
+        except ValueError:
+            print("\n❌ ERROR: Debe ingresar un numero entero.")
+            continue
+
+        if opcion == 1:
+            print("\n--- AGENDAR CITA Y EVALUACION CLINICA ---")
+            dni = input("Ingrese DNI del paciente: ").strip()
+            es_valido, msg_val = validar_dni(dni)
+            if not es_valido:
+                print(msg_val)
+                continue
+
+            res_paciente = consultar_paciente_y_citas(base_datos, dni)
+            if not res_paciente["existe"]:
+                print("⚠️ Paciente no registrado. Procediendo a registro rapido:")
+                nombre = input("Nombre completo: ").strip()
+                telefono = input("Telefono: ").strip()
+                correo = input("Correo electronico: ").strip()
+                base_datos["pacientes"][dni] = {"nombre": nombre, "telefono": telefono, "correo": correo}
+                guardar_datos(base_datos)
+
+            print("\nEspecialistas y Consultorios Disponibles:")
+            for k, v in base_datos["especialistas"].items():
+                print(f" [{k}] {v['nombre']} ({v['especialidad']}) -> Horas: {v['horario']}")
+
+            id_esp = input("\nIngrese codigo del especialista (ej. ESP03): ").strip().upper()
+
+            fecha = input("Ingrese fecha de la cita (DD/MM/AAAA): ").strip()
+            es_valida, msg_f = validar_fecha(fecha)
+            if not es_valida:
+                print(msg_f)
+                continue
+
+            hora = input("Ingrese hora (HH:MM): ").strip()
+            es_valida, msg_h = validar_hora(hora)
+            if not es_valida:
+                print(msg_h)
+                continue
+
+            print("\n📝 Describa brevemente los sintomas o malestares del paciente:")
+            sintomas = input("-> ").strip()
+
+            res_agenda = agendar_cita_avanzada(base_datos, dni, id_esp, fecha, hora, sintomas)
+            print(f"\n{res_agenda['mensaje']}")
+
+        elif opcion == 2:
+            print("\n--- REPROGRAMAR CITA ---")
+            id_cita = input("Ingrese el codigo de la cita a modificar (ej. CIT001): ").strip().upper()
+
+            nueva_fecha = input("Ingrese nueva fecha (DD/MM/AAAA): ").strip()
+            es_valida, msg_f = validar_fecha(nueva_fecha)
+            if not es_valida:
+                print(msg_f)
+                continue
+
+            nueva_hora = input("Ingrese nueva hora (HH:MM): ").strip()
+            es_valida, msg_h = validar_hora(nueva_hora)
+            if not es_valida:
+                print(msg_h)
+                continue
+
+            res_reprog = reprogramar_cita(base_datos, id_cita, nueva_fecha, nueva_hora)
+            print(f"\n{res_reprog['mensaje']}")
+
+        elif opcion == 3:
+            print("\n--- CANCELAR CITA ---")
+            id_cita = input("Ingrese el codigo de la cita a cancelar (ej. CIT001): ").strip().upper()
+            res_cancel = cancelar_cita(base_datos, id_cita)
+            print(f"\n{res_cancel['mensaje']}")
+
+        elif opcion == 4:
+            print("\n--- CIERRE JORNADA (ATENCION MASIVA) ---")
+            fecha = input("Ingrese la fecha a procesar (DD/MM/AAAA): ").strip()
+            es_valida, msg_f = validar_fecha(fecha)
+            if not es_valida:
+                print(msg_f)
+                continue
+
+            res_masivo = confirmar_asistencia_masiva(base_datos, fecha)
+            print(f"\n{res_masivo['mensaje']}")
+
+        elif opcion == 5:
+            menu_reportes_y_analitica(base_datos)
+
+        elif opcion == 6:
+            guardar_datos(base_datos)
+            print("\n💾 Base de datos guardada de forma local.")
+            break
+        else:
+            print("\n❌ Opción incorrecta. Intente del 1 al 6.")
+
+if __name__ == "__main__":
+    menu_principal()
