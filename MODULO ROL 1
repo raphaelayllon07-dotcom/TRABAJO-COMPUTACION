@@ -1,0 +1,577 @@
+import json
+import os
+import re
+from datetime import datetime
+import pandas as pd
+import numpy as np
+
+# ============================================================================
+# MÓDULO 1: ARQUITECTURA DE DATOS Y PERSISTENCIA (Data Architect)
+# ============================================================================
+
+def inicializar_sistema():
+    """Inicializa la estructura global con una plana médica ampliada de 5 especialistas."""
+    base_datos = {
+        "especialistas": {
+            "ESP01": {
+                "nombre": "Dr. Carlos Mendoza",
+                "especialidad": "Medicina General",
+                "horario": ["08:00", "09:00", "10:00", "11:00", "14:00", "15:00"]
+            },
+            "ESP02": {
+                "nombre": "Dra. Ana Taylor",
+                "especialidad": "Pediatria",
+                "horario": ["09:00", "10:00", "11:00", "16:00", "17:00"]
+            },
+            "ESP03": {
+                "nombre": "Dr. Roberto Arce",
+                "especialidad": "Cardiologia",
+                "horario": ["08:30", "10:30", "15:30", "16:30"]
+            },
+            "ESP04": {
+                "nombre": "Dra. Elena Ruiz",
+                "especialidad": "Dermatologia",
+                "horario": ["09:00", "11:30", "14:30", "16:00"]
+            },
+            "ESP05": {
+                "nombre": "Dr. Luis Camargo",
+                "especialidad": "Traumatologia",
+                "horario": ["08:00", "10:00", "12:00", "15:00"]
+            }
+        },
+        "pacientes": {},
+        "citas": []
+    }
+    return base_datos
+
+
+def consultar_paciente_y_citas(base_datos, dni_paciente):
+    """Busca eficientemente un paciente y su historial de citas mediante DNI."""
+    if dni_paciente not in base_datos["pacientes"]:
+        return {"existe": False, "mensaje": f"El paciente con DNI {dni_paciente} no esta registrado.", "datos": None, "citas": []}
+
+    datos_paciente = base_datos["pacientes"][dni_paciente]
+    citas_del_paciente = [cita for cita in base_datos["citas"] if cita["id_paciente"] == dni_paciente]
+    return {"existe": True, "mensaje": "Paciente encontrado con exito.", "datos": datos_paciente, "citas": citas_del_paciente}
+
+
+def guardar_datos(base_datos, nombre_archivo="agenda_datos.json"):
+    """Guarda la estructura global de datos en un archivo JSON."""
+    try:
+        with open(nombre_archivo, 'w', encoding='utf-8') as archivo:
+            json.dump(base_datos, archivo, indent=4, ensure_ascii=False)
+        return True
+    except IOError as e:
+        print(f"[ERROR PERSISTENCIA] No se pudo escribir en el archivo: {e}")
+        return False
+
+
+def cargar_datos(nombre_archivo="agenda_datos.json"):
+    """
+    Busca el archivo de persistencia y asegura que la lista de 5 especialistas
+    este completamente actualizada y cargada en el sistema.
+    """
+    if not os.path.exists(nombre_archivo):
+        return inicializar_sistema()
+    try:
+        with open(nombre_archivo, 'r', encoding='utf-8') as archivo:
+            datos = json.load(archivo)
+
+        # Forzar actualizacion de la plana medica completa por si quedaban residuos del archivo viejo
+        plana_medica_actualizada = inicializar_sistema()["especialistas"]
+        datos["especialistas"] = plana_medica_actualizada
+        return datos
+    except (json.JSONDecodeError, IOError):
+        print("[ALERTA] Archivo de datos ilegible. Reestableciendo base de datos de seguridad.")
+        return inicializar_sistema()
+
+
+# ============================================================================
+# MÓDULO ADICIONAL: MOTOR DE DIAGNÓSTICO CLÍNICO AUTOMATIZADO
+# ============================================================================
+
+def generar_diagnostico_presuntivo(sintomas_texto):
+    """
+    Procesa analíticamente el texto de los síntomas ingresados por el usuario
+    y genera un diagnóstico basado en reglas de emparejamiento semántico.
+    """
+    texto = sintomas_texto.lower().strip()
+
+    if not texto:
+        return {
+            "diagnostico": "Evaluacion General Preventiva",
+            "recomendacion": "Sintomas no especificados. Se procedera con una revision de rutina de signos vitales."
+        }
+
+    if any(palabra in texto for palabra in ["fiebre", "tos", "gripe", "garganta", "malestar", "resfriado"]):
+        return {
+            "diagnostico": "Infeccion Respiratoria Aguda",
+            "recomendacion": "Reposo absoluto, hidratacion constante y evaluacion de temperatura cada 4 horas."
+        }
+    elif any(palabra in texto for palabra in ["pecho", "corazon", "palpitaciones", "presion alta", "taquicardia"]):
+        return {
+            "diagnostico": "Alteracion Cardiovascular",
+            "recomendacion": "Evitar esfuerzos fisicos inmediatos, mantener la calma y realizar un electrocardiograma de control."
+        }
+    elif any(palabra in texto for palabra in ["mancha", "roncha", "alergia", "picazon", "piel", "ronchas"]):
+        return {
+            "diagnostico": "Dermatitis Cutanea Alergica",
+            "recomendacion": "No aplicar cremas cosmeticas sobre la zona afectada y evitar la exposicion directa al sol."
+        }
+    elif any(palabra in texto for palabra in ["dolor de espalda", "hueso", "fractura", "tobillo", "golpe", "rodilla", "esguince", "huesos"]):
+        return {
+            "diagnostico": "Lesion Musculoesqueletica",
+            "recomendacion": "Inmovilizar la zona afectada, aplicar una compresa fria de forma local y evitar apoyar el miembro."
+        }
+    elif any(palabra in texto for palabra in ["estomago", "diarrea", "vomito", "nauseas", "dolor abdominal"]):
+        return {
+            "diagnostico": "Gastroenteritis Intestinal",
+            "recomendacion": "Iniciar regimen de dieta blanda, priorizar soluciones de hidratacion oral y evitar lacteos."
+        }
+    else:
+        return {
+            "diagnostico": "Sintomatologia Inespecifica",
+            "recomendacion": "El especialista realizara una anamnesis completa en el consultorio para determinar la patologia."
+        }
+
+
+# ============================================================================
+# MÓDULO 2: LÓGICA DE NEGOCIO Y ADMINISTRACIÓN (Core Backend)
+# ============================================================================
+
+def agendar_cita_avanzada(base_datos, dni_paciente, id_especialista, fecha, hora, sintomas):
+    """Registra una nueva cita validando disponibilidad y procesando el diagnostico preliminar."""
+    if id_especialista not in base_datos["especialistas"]:
+        return {"exito": False, "mensaje": "Error: El especialista no existe."}
+
+    especialista = base_datos["especialistas"][id_especialista]
+    if hora not in especialista["horario"]:
+        return {"exito": False, "mensaje": f"Error: Horario ({hora}) no disponible para este especialista."}
+
+    if base_datos["citas"]:
+        df_citas = pd.DataFrame(base_datos["citas"])
+        cruce = df_citas[
+            (df_citas["id_especialista"] == id_especialista) &
+            (df_citas["fecha"] == fecha) &
+            (df_citas["hora"] == hora) &
+            (df_citas["estado"] == "Confirmada")
+        ]
+        if not cruce.empty:
+            return {"exito": False, "mensaje": f"Error: El horario de las {hora} el dia {fecha} ya esta ocupado."}
+
+    resultado_clinico = generar_diagnostico_presuntivo(sintomas)
+
+    id_nueva_cita = f"CIT{len(base_datos['citas']) + 1:03d}"
+    nueva_cita = {
+        "id_cita": id_nueva_cita,
+        "id_paciente": dni_paciente,
+        "id_especialista": id_especialista,
+        "fecha": fecha,
+        "hora": hora,
+        "sintomas_reportados": sintomas,
+        "diagnostico_preliminar": resultado_clinico["diagnostico"],
+        "recomendacion_inicial": resultado_clinico["recomendacion"],
+        "estado": "Confirmada"
+    }
+
+    base_datos["citas"].append(nueva_cita)
+    guardar_datos(base_datos)
+
+    print("\n" + "🩺 " + "="*45)
+    print("      ⚕️ INFORME MEDICO PRELIMINAR GENERADO")
+    print("="*47)
+    print(f" Codigo de Evaluacion : {id_nueva_cita}")
+    print(f" Sintomas Registrados : {sintomas if sintomas else 'Ninguno especificado'}")
+    print(f" Diagnostico Presunto : {resultado_clinico['diagnostico']}")
+    print(f" Sugerencia Inicial   : {resultado_clinico['recomendacion']}")
+    print("="*47)
+
+    return {"exito": True, "mensaje": f"¡Cita {id_nueva_cita} registrada y procesada clinicamente con éxito!"}
+
+
+def reprogramar_cita(base_datos, id_cita, nueva_fecha, nueva_hora):
+    """Modifica la fecha y hora de una cita existente validando con Pandas."""
+    cita_encontrada = None
+    for cita in base_datos["citas"]:
+        if cita["id_cita"] == id_cita:
+            cita_encontrada = cita
+            break
+
+    if not cita_encontrada:
+        return {"exito": False, "mensaje": f"Error: No se encontro la cita {id_cita}."}
+    if cita_encontrada["estado"] == "Cancelada":
+        return {"exito": False, "mensaje": "Error: No se puede reprogramar una cita cancelada."}
+
+    id_esp = cita_encontrada["id_especialista"]
+    df_citas = pd.DataFrame(base_datos["citas"])
+
+    cruce = df_citas[
+        (df_citas["id_especialista"] == id_esp) &
+        (df_citas["fecha"] == nueva_fecha) &
+        (df_citas["hora"] == nueva_hora) &
+        (df_citas["id_cita"] != id_cita) &
+        (df_citas["estado"] == "Confirmada")
+    ]
+
+    if not cruce.empty:
+        return {"exito": False, "mensaje": f"Error: El horario ({nueva_hora} el {nueva_fecha}) ya esta ocupado."}
+
+    cita_encontrada["fecha"] = nueva_fecha
+    cita_encontrada["hora"] = nueva_hora
+    guardar_datos(base_datos)
+    return {"exito": True, "mensaje": f"¡Cita {id_cita} reprogramada exitosamente!"}
+
+
+def cancelar_cita(base_datos, id_cita):
+    """Cambia el estado de una cita a 'Cancelada', liberando el espacio."""
+    for cita in base_datos["citas"]:
+        if cita["id_cita"] == id_cita:
+            if cita["estado"] == "Cancelada":
+                return {"exito": False, "mensaje": "La cita ya se encontraba cancelada."}
+            cita["estado"] = "Cancelada"
+            guardar_datos(base_datos)
+            return {"exito": True, "mensaje": f"¡Cita {id_cita} cancelada exitosamente!"}
+    return {"exito": False, "mensaje": f"Error: Codigo de cita {id_cita} no encontrado."}
+
+
+def confirmar_asistencia_masiva(base_datos, fecha):
+    """Usa arreglos de NumPy para procesar masivamente las citas de un dia a 'Atendida'."""
+    if not base_datos["citas"]:
+        return {"exito": False, "mensaje": "No hay citas en el sistema."}
+
+    df = pd.DataFrame(base_datos["citas"])
+    indices_fecha = df[df["fecha"] == fecha].index.to_numpy()
+
+    if indices_fecha.size == 0:
+        return {"exito": False, "mensaje": f"No se encontraron citas para el dia {fecha}."}
+
+    contador = 0
+    for idx in indices_fecha:
+        if base_datos["citas"][idx]["estado"] == "Confirmada":
+            base_datos["citas"][idx]["estado"] = "Atendida"
+            contador += 1
+
+    guardar_datos(base_datos)
+    return {"exito": True, "mensaje": f"Procesamiento masivo completado. {contador} citas actualizadas."}
+
+
+# ============================================================================
+# MÓDULO 3: CONTROL DE CALIDAD Y VALIDACIONES
+# ============================================================================
+
+def validar_dni(dni):
+    """Retorna (True, mensaje) si es válido, o (False, mensaje de error)."""
+    try:
+        if dni is None:
+            return False, "Error: El campo DNI no puede estar vacío."
+
+        dni_limpio = str(dni).strip()
+        if re.match(r"^\d{8}$", dni_limpio):
+            return True, "DNI validado con éxito."
+        else:
+            return False, f"Error: '{dni_limpio}' no cumple con el formato requerido (8 dígitos exactos)."
+    except Exception as e:
+        return False, f"Error crítico durante la validación del DNI: {e}"
+
+
+def validar_fecha(fecha_str):
+    """Valida formato DD/MM/AAAA y que la fecha no sea pasada."""
+    try:
+        if fecha_str is None:
+            return False, "Error: El campo fecha no puede estar vacío."
+
+        fecha_limpio = str(fecha_str).strip()
+        fecha_objeto = datetime.strptime(fecha_limpio, "%d/%m/%Y").date()
+
+        if fecha_objeto < datetime.now().date():
+            return False, f"Error: La fecha {fecha_limpio} es pasada. No se pueden programar citas antiguas."
+
+        return True, "Fecha validada con éxito."
+    except ValueError:
+        return False, f"Error: '{fecha_str}' no es una fecha válida. Utilice el formato DD/MM/AAAA."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de fecha: {e}"
+
+
+def validar_hora(hora_str):
+    """Valida formato HH:MM (24h)."""
+    try:
+        if hora_str is None:
+            return False, "Error: El campo hora no puede estar vacío."
+
+        hora_limpio = str(hora_str).strip()
+        datetime.strptime(hora_limpio, "%H:%M")
+        return True, "Hora validada con éxito."
+    except ValueError:
+        return False, f"Error: '{hora_str}' no es una hora válida (HH:MM formato 24h)."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de hora: {e}"
+
+
+def validar_telefono(telefono):
+    """Valida 9 dígitos iniciando con 9."""
+    try:
+        if telefono is None:
+            return False, "Error: El campo teléfono no puede estar vacío."
+
+        tel_limpio = str(telefono).strip()
+        if re.match(r"^9\d{8}$", tel_limpio):
+            return True, "Teléfono validado con éxito."
+        else:
+            return False, f"Error: '{tel_limpio}' inválido. Debe iniciar con 9 y tener 9 dígitos."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de teléfono: {e}"
+
+
+def validar_correo(correo):
+    """Valida estructura básica de email."""
+    try:
+        if correo is None:
+            return False, "Error: El campo correo no puede estar vacío."
+
+        correo_limpio = str(correo).strip().lower()
+        patron = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+
+        if re.match(patron, correo_limpio):
+            return True, "Correo validado con éxito."
+        else:
+            return False, f"Error: '{correo_limpio}' no tiene una estructura de correo válida."
+    except Exception as e:
+        return False, f"Error crítico durante la validación de correo: {e}"
+
+# ============================================================================
+# MÓDULO 4: REPORTES, ANALÍTICA Y GRÁFICOS ESTADÍSTICOS
+# ============================================================================
+
+def mostrar_graficos_distribucion(base_datos):
+    """Genera gráficos analíticos vectorizados de distribución en consola."""
+    print("\n" + "📊 " + "═"*50)
+    print("      📈 DATA VISUALIZATION - DISTRIBUCION DE CITAS")
+    print("═"*53)
+
+    if not base_datos["citas"]:
+        print("📭 Mensaje: No hay datos suficientes para estructurar graficos analiticos.")
+        print("═"*53)
+        return
+
+    df = pd.DataFrame(base_datos["citas"])
+
+    # Gráfico 1: Distribución por Especialista
+    print("\n[GRÁFICO 1] Volumen de Pacientes por Medico Especialista")
+    print("-" * 53)
+    df["Medico"] = df["id_especialista"].apply(lambda x: base_datos["especialistas"].get(x, {}).get("nombre", "Desconocido"))
+    frecuencia_medicos = df["Medico"].value_counts()
+
+    for medico, conteo in frecuencia_medicos.items():
+        barra = "█" * conteo
+        print(f" {medico:<22} | {barra} ({conteo} pac)")
+
+    # Gráfico 2: Distribución por Patologías / Diagnósticos Preliminares
+    print("\n[GRÁFICO 2] Incidencia de Patologias Detectadas (Diagnostico Preliminar)")
+    print("-" * 53)
+    frecuencia_diagnosticos = df["diagnostico_preliminar"].value_counts()
+
+    for diagnostico, conteo in frecuencia_diagnosticos.items():
+        barra = "■" * conteo
+        print(f" {diagnostico:<22} | {barra} ({conteo} casos)")
+    print("═"*53)
+
+
+def exportar_citas_a_excel(base_datos):
+    """Convierte la lista de citas en un DataFrame de Pandas y exporta a Excel (.xlsx)."""
+    print("\n" + "═"*45)
+    print("        📊 EXPORTACION DE AGENDA A EXCEL")
+    print("═"*45)
+
+    if not base_datos["citas"]:
+        print("📭 Mensaje: No hay datos de citas que procesar para el reporte Excel.")
+        print("═"*45)
+        return
+
+    try:
+        df = pd.DataFrame(base_datos["citas"])
+
+        df["Nombre Paciente"] = df["id_paciente"].apply(lambda x: base_datos["pacientes"].get(x, {}).get("nombre", "No Registrado"))
+        df["Médico Especialista"] = df["id_especialista"].apply(lambda x: base_datos["especialistas"].get(x, {}).get("nombre", "No Asignado"))
+
+        df_final = df[["id_cita", "id_paciente", "Nombre Paciente", "Médico Especialista", "fecha", "hora", "sintomas_reportados", "diagnostico_preliminar", "estado"]]
+        df_final.columns = ["Código Cita", "DNI Paciente", "Nombre Paciente", "Médico Especialista", "Fecha", "Hora", "Síntomas", "Diagnóstico Inteligente", "Estado Actual"]
+
+        nombre_archivo = "Reporte_Citas_Medicas.xlsx"
+        df_final.to_excel(nombre_archivo, index=False)
+
+        print(f"✨ ¡EXITO TOTAL! Se ha generado el reporte ejecutivo de manera limpia.")
+        print(f"📁 Archivo creado en la carpeta del proyecto: '{nombre_archivo}'")
+        print("═"*45)
+    except Exception as e:
+        print(f"❌ Error critico en la generacion de la hoja de calculo Pandas: {e}")
+
+
+def generar_resumen_estadistico(base_datos):
+    print("\n" + "═"*45)
+    print("            📊 RESUMEN ESTADISTICO GENERAL")
+    print("═"*45)
+    total_citas = len(base_datos["citas"])
+    total_pacientes = len(base_datos["pacientes"])
+    total_especialistas = len(base_datos["especialistas"])
+    print(f" 📅 Total de Citas Agendadas : {total_citas} registros")
+    print(f" 👥 Pacientes Registrados    : {total_pacientes} usuarios")
+    print(f" 🩺 Especialistas Activos    : {total_especialistas} medicos")
+    print("═"*45)
+
+
+def reporte_paciente_con_mas_citas(base_datos):
+    print("\n" + "═"*45)
+    print("         📊 PACIENTE CON MAYOR ACTIVIDAD")
+    print("═"*45)
+    citas = base_datos["citas"]
+    if not citas:
+        print(" 📭 Mensaje: No se registran citas agendadas en el sistema aun.")
+        print("═"*45)
+        return
+
+    frecuencias_pacientes = {}
+    for cita in citas:
+        id_paciente = cita["id_paciente"]
+        frecuencias_pacientes[id_paciente] = frecuencias_pacientes.get(id_paciente, 0) + 1
+
+    dni_maximo = None
+    max_citas = -1
+    for DNI, total_citas in frecuencias_pacientes.items():
+        if total_citas > max_citas:
+            max_citas = total_citas
+            dni_maximo = DNI
+
+    if dni_maximo in base_datos["pacientes"]:
+        nombre_completo = base_datos["pacientes"][dni_maximo]["nombre"]
+    else:
+        nombre_completo = "Paciente Temporal / No Registrado"
+
+    print(f" 🏆 Paciente mas recurrente  : {nombre_completo}")
+    print(f" 🪪 Documento de Identidad    : DNI {dni_maximo}")
+    print(f" 📊 Total de citas acumuladas : {max_citas} asistencias")
+    print("═"*45)
+
+
+def menu_reportes_y_analitica(base_datos):
+    while True:
+        print("\n" + "═"*45)
+        print("    📊 PANEL DE CONTROL Y REPORTES MEDICOS")
+        print("═"*45)
+        print("1. Ver Resumen Estadistico General")
+        print("2. Identificar Paciente Recurrente")
+        print("3. Visualizar Graficos Analiticos de Distribucion")
+        print("4. Exportar toda la Agenda a Excel (Pandas)")
+        print("5. Volver al Menú Principal")
+        print("═"*45)
+        try:
+            opcion = int(input("Seleccione un reporte (1-5): "))
+        except ValueError:
+            print("\n❌ ERROR: Entrada invalida. Por favor, ingrese un numero entero.")
+            continue
+        if opcion == 1:
+            generar_resumen_estadistico(base_datos)
+        elif opcion == 2:
+            reporte_paciente_con_mas_citas(base_datos)
+        elif opcion == 3:
+            mostrar_graficos_distribucion(base_datos)
+        elif opcion == 4:
+            exportar_citas_a_excel(base_datos)
+        elif opcion == 5:
+            print("\nRegresando de forma segura al Panel Principal...")
+            break
+        else:
+            print("\n❌ OPCION NO VALIDA: Intente con un numero entre 1 y 5.")
+
+
+# ============================================================================
+# MÓDULO INTERFAZ DE USUARIO: MENÚ PRINCIPAL INTERACTIVO
+# ============================================================================
+
+def menu_principal():
+    base_datos = cargar_datos()
+
+    while True:
+        print("\n" + "═"*50)
+        print("      🏥 SISTEMA GESTION DE CITAS MEDICAS v4.3")
+        print("═"*50)
+        print("1. Agendar Nueva Cita (Con Diagnostico Inteligente)")
+        print("2. Reprogramar Cita Existente")
+        print("3. Cancelar Cita")
+        print("4. Cierre de Jornada (Confirmacion Masiva)")
+        print("5. Panel de Reportes, Analitica y Graficos")
+        print("6. Salir del Sistema")
+        print("═"*50)
+
+        try:
+            opcion = int(input("Seleccione una opción (1-6): "))
+        except ValueError:
+            print("\n❌ ERROR: Debe ingresar un numero entero.")
+            continue
+
+        if opcion == 1:
+            print("\n--- AGENDAR CITA Y EVALUACION CLINICA ---")
+            dni = input("Ingrese DNI del paciente: ").strip()
+            if not '../../' in dni and not validar_dni(dni): continue
+
+            res_paciente = consultar_paciente_y_citas(base_datos, dni)
+            if not res_paciente["existe"]:
+                print("⚠️ Paciente no registrado. Procediendo a registro rapido:")
+                nombre = input("Nombre completo: ").strip()
+                telefono = input("Telefono: ").strip()
+                correo = input("Correo electronico: ").strip()
+                base_datos["pacientes"][dni] = {"nombre": nombre, "telefono": telefono, "correo": correo}
+                guardar_datos(base_datos)
+
+            print("\nEspecialistas y Consultorios Disponibles:")
+            for k, v in base_datos["especialistas"].items():
+                print(f" [{k}] {v['nombre']} ({v['especialidad']}) -> Horas: {v['horario']}")
+
+            id_esp = input("\nIngrese codigo del especialista (ej. ESP03): ").strip().upper()
+            fecha = input("Ingrese fecha de la cita (DD/MM/AAAA): ").strip()
+            if not validar_fecha(fecha): continue
+            hora = input("Ingrese hora (HH:MM): ").strip()
+            if not validar_hora(hora): continue
+
+            print("\n📝 Describa brevemente los sintomas o malestares del paciente:")
+            sintomas = input("-> ").strip()
+
+            res_agenda = agendar_cita_avanzada(base_datos, dni, id_esp, fecha, hora, sintomas)
+            print(f"\n{res_agenda['mensaje']}")
+
+        elif opcion == 2:
+            print("\n--- REPROGRAMAR CITA ---")
+            id_cita = input("Ingrese el codigo de la cita a modificar (ej. CIT001): ").strip().upper()
+            nueva_fecha = input("Ingrese nueva fecha (DD/MM/AAAA): ").strip()
+            if not validar_fecha(nueva_fecha): continue
+            nueva_hora = input("Ingrese nueva hora (HH:MM): ").strip()
+            if not validar_hora(nueva_hora): continue
+
+            res_reprog = reprogramar_cita(base_datos, id_cita, nueva_fecha, nueva_hora)
+            print(f"\n{res_reprog['mensaje']}")
+
+        elif opcion == 3:
+            print("\n--- CANCELAR CITA ---")
+            id_cita = input("Ingrese el codigo de la cita a cancelar (ej. CIT001): ").strip().upper()
+            res_cancel = cancelar_cita(base_datos, id_cita)
+            print(f"\n{res_cancel['mensaje']}")
+
+        elif opcion == 4:
+            print("\n--- CIERRE JORNADA (ATENCION MASIVA) ---")
+            fecha = input("Ingrese la fecha a procesar (DD/MM/AAAA): ").strip()
+            res_masivo = confirmar_asistencia_masiva(base_datos, fecha)
+            print(f"\n{res_masivo['mensaje']}")
+
+        elif opcion == 5:
+            menu_reportes_y_analitica(base_datos)
+
+        elif opcion == 6:
+            guardar_datos(base_datos)
+            print("\n💾 Base de datos guardada de forma local en Colab.")
+            break
+        else:
+            print("\n❌ Opción incorrecta. Intente del 1 al 6.")
+
+if __name__ == "__main__":
+6
+    menu_principal()
