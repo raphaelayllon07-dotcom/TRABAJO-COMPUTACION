@@ -1,0 +1,114 @@
+def agendar_cita_avanzada(base_datos, dni_paciente, id_especialista, fecha, hora, sintomas):
+    """Registra una nueva cita validando disponibilidad y procesando el diagnostico preliminar."""
+    if id_especialista not in base_datos["especialistas"]:
+        return {"exito": False, "mensaje": "Error: El especialista no existe."}
+
+    especialista = base_datos["especialistas"][id_especialista]
+    if hora not in especialista["horario"]:
+        return {"exito": False, "mensaje": f"Error: Horario ({hora}) no disponible para este especialista."}
+
+    if base_datos["citas"]:
+        df_citas = pd.DataFrame(base_datos["citas"])
+        cruce = df_citas[
+            (df_citas["id_especialista"] == id_especialista) &
+            (df_citas["fecha"] == fecha) &
+            (df_citas["hora"] == hora) &
+            (df_citas["estado"] == "Confirmada")
+        ]
+        if not cruce.empty:
+            return {"exito": False, "mensaje": f"Error: El horario de las {hora} el dia {fecha} ya esta ocupado."}
+
+    resultado_clinico = generar_diagnostico_presuntivo(sintomas)
+
+    id_nueva_cita = f"CIT{len(base_datos['citas']) + 1:03d}"
+    nueva_cita = {
+        "id_cita": id_nueva_cita,
+        "id_paciente": dni_paciente,
+        "id_especialista": id_especialista,
+        "fecha": fecha,
+        "hora": hora,
+        "sintomas_reportados": sintomas,
+        "diagnostico_preliminar": resultado_clinico["diagnostico"],
+        "recomendacion_inicial": resultado_clinico["recomendacion"],
+        "estado": "Confirmada"
+    }
+
+    base_datos["citas"].append(nueva_cita)
+    guardar_datos(base_datos)
+
+    print("\n" + "🩺 " + "="*45)
+    print("      ⚕️ INFORME MEDICO PRELIMINAR GENERADO")
+    print("="*47)
+    print(f" Codigo de Evaluacion : {id_nueva_cita}")
+    print(f" Sintomas Registrados : {sintomas if sintomas else 'Ninguno especificado'}")
+    print(f" Diagnostico Presunto : {resultado_clinico['diagnostico']}")
+    print(f" Sugerencia Inicial   : {resultado_clinico['recomendacion']}")
+    print("="*47)
+
+    return {"exito": True, "mensaje": f"¡Cita {id_nueva_cita} registrada y procesada clinicamente con éxito!"}
+
+
+def reprogramar_cita(base_datos, id_cita, nueva_fecha, nueva_hora):
+    """Modifica la fecha y hora de una cita existente validando con Pandas."""
+    cita_encontrada = None
+    for cita in base_datos["citas"]:
+        if cita["id_cita"] == id_cita:
+            cita_encontrada = cita
+            break
+
+    if not cita_encontrada:
+        return {"exito": False, "mensaje": f"Error: No se encontro la cita {id_cita}."}
+    if cita_encontrada["estado"] == "Cancelada":
+        return {"exito": False, "mensaje": "Error: No se puede reprogramar una cita cancelada."}
+
+    id_esp = cita_encontrada["id_especialista"]
+    df_citas = pd.DataFrame(base_datos["citas"])
+
+    cruce = df_citas[
+        (df_citas["id_especialista"] == id_esp) &
+        (df_citas["fecha"] == nueva_fecha) &
+        (df_citas["hora"] == nueva_hora) &
+        (df_citas["id_cita"] != id_cita) &
+        (df_citas["estado"] == "Confirmada")
+    ]
+
+    if not cruce.empty:
+        return {"exito": False, "mensaje": f"Error: El horario ({nueva_hora} el {nueva_fecha}) ya esta ocupado."}
+
+    cita_encontrada["fecha"] = nueva_fecha
+    cita_encontrada["hora"] = nueva_hora
+    guardar_datos(base_datos)
+    return {"exito": True, "mensaje": f"¡Cita {id_cita} reprogramada exitosamente!"}
+
+
+def cancelar_cita(base_datos, id_cita):
+    """Cambia el estado de una cita a 'Cancelada', liberando el espacio."""
+    for cita in base_datos["citas"]:
+        if cita["id_cita"] == id_cita:
+            if cita["estado"] == "Cancelada":
+                return {"exito": False, "mensaje": "La cita ya se encontraba cancelada."}
+            cita["estado"] = "Cancelada"
+            guardar_datos(base_datos)
+            return {"exito": True, "mensaje": f"¡Cita {id_cita} cancelada exitosamente!"}
+    return {"exito": False, "mensaje": f"Error: Codigo de cita {id_cita} no encontrado."}
+
+
+def confirmar_asistencia_masiva(base_datos, fecha):
+    """Usa arreglos de NumPy para procesar masivamente las citas de un dia a 'Atendida'."""
+    if not base_datos["citas"]:
+        return {"exito": False, "mensaje": "No hay citas en el sistema."}
+
+    df = pd.DataFrame(base_datos["citas"])
+    indices_fecha = df[df["fecha"] == fecha].index.to_numpy()
+
+    if indices_fecha.size == 0:
+        return {"exito": False, "mensaje": f"No se encontraron citas para el dia {fecha}."}
+
+    contador = 0
+    for idx in indices_fecha:
+        if base_datos["citas"][idx]["estado"] == "Confirmada":
+            base_datos["citas"][idx]["estado"] = "Atendida"
+            contador += 1
+
+    guardar_datos(base_datos)
+    return {"exito": True, "mensaje": f"Procesamiento masivo completado. {contador} citas actualizadas."}
